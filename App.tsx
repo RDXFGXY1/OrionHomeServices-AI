@@ -53,14 +53,11 @@ const App: React.FC = () => {
   const [favoriteExpertIds, setFavoriteExpertIds] = useState<string[]>([]);
   const [isHubOpen, setIsHubOpen] = useState(false);
   
-  // Global Chat Histories state: Expert ID -> Message[]
   const [chatMessages, setChatMessages] = useState<Record<string, Message[]>>({});
-
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
 
-  // Simulated User Account State
   const [userBalance, setUserBalance] = useState(1240.50);
   const [userTier, setUserTier] = useState<'Standard' | 'Plus' | 'Pro'>('Standard');
   const [transactions, setTransactions] = useState<Transaction[]>([
@@ -88,44 +85,9 @@ const App: React.FC = () => {
   useEffect(() => {
     const slider = scrollRef.current;
     if (!slider) return;
-
-    let isDown = false;
-    let startX: number;
-    let scrollLeft: number;
-
-    const handleMouseDown = (e: MouseEvent) => {
-      isDown = true;
-      slider.classList.add('active');
-      startX = e.pageX - slider.offsetLeft;
-      scrollLeft = slider.scrollLeft;
-    };
-
-    const handleMouseLeave = () => { isDown = false; };
-    const handleMouseUp = () => { isDown = false; };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      if (!isDown) return;
-      e.preventDefault();
-      const x = e.pageX - slider.offsetLeft;
-      const walk = (x - startX) * 2; 
-      slider.scrollLeft = scrollLeft - walk;
-      updateScrollCues();
-    };
-
-    slider.addEventListener('mousedown', handleMouseDown);
-    slider.addEventListener('mouseleave', handleMouseLeave);
-    slider.addEventListener('mouseup', handleMouseUp);
-    slider.addEventListener('mousemove', handleMouseMove);
     slider.addEventListener('scroll', updateScrollCues);
     updateScrollCues();
-
-    return () => {
-      slider.removeEventListener('mousedown', handleMouseDown);
-      slider.removeEventListener('mouseleave', handleMouseLeave);
-      slider.removeEventListener('mouseup', handleMouseUp);
-      slider.removeEventListener('mousemove', handleMouseMove);
-      slider.removeEventListener('scroll', updateScrollCues);
-    };
+    return () => slider.removeEventListener('scroll', updateScrollCues);
   }, []);
 
   const handleFileUpload = async (file: File) => {
@@ -133,25 +95,19 @@ const App: React.FC = () => {
     setDiagnosticResult(null);
     const url = URL.createObjectURL(file);
     setPreviewUrl(url);
-
-    let mimeType = file.type || 'image/jpeg';
-    try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64Data = (reader.result as string).split(',')[1];
-        try {
-          const diagnosis = await diagnoseRepair(base64Data, mimeType);
-          setDiagnosticResult(diagnosis);
-        } catch (err) {
-          alert("AI Diagnosis failed.");
-        } finally {
-          setLoading(false);
-        }
-      };
-      reader.readAsDataURL(file);
-    } catch (err) {
-      setLoading(false);
-    }
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64Data = (reader.result as string).split(',')[1];
+      try {
+        const diagnosis = await diagnoseRepair(base64Data, file.type || 'image/jpeg');
+        setDiagnosticResult(diagnosis);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   const getRecommendedExpert = (category: string): Expert | null => {
@@ -163,7 +119,6 @@ const App: React.FC = () => {
     if (selectedExpert) {
       const [datePart, timePart] = bookingDetails.split(' at ');
       const finalPrice = overridePrice !== undefined ? overridePrice : selectedExpert.pricePerHour;
-
       const newBooking: Booking = {
         id: Math.random().toString(36).substr(2, 9),
         expertId: selectedExpert.id,
@@ -174,15 +129,6 @@ const App: React.FC = () => {
       };
       setBookings(prev => [newBooking, ...prev]);
       setUserBalance(prev => prev - finalPrice);
-      setTransactions(prev => [{
-        id: Math.random().toString(36).substr(2, 6),
-        title: `Service Booking: ${selectedExpert.name}`,
-        amount: -finalPrice,
-        date: 'Today',
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        status: 'Completed',
-        type: 'Payment'
-      }, ...prev]);
     }
   };
 
@@ -245,12 +191,11 @@ const App: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen transition-colors duration-500 bg-[#020617] flex flex-col">
+    <div className="min-h-screen transition-colors duration-500 flex flex-col relative overflow-x-hidden">
       <Header setView={handleNavigation} currentView={view} searchTerm={searchTerm} onSearchChange={setSearchTerm} />
       
-      {/* 3D Context Wrapper - Perspective is applied here so it doesn't affect fixed positioning */}
       <div className="flex-1" style={{ perspective: '1500px' }}>
-        <main className="max-w-7xl mx-auto px-6 pt-24 pb-64">
+        <main className="max-w-7xl mx-auto px-6 pt-24 pb-64 relative z-10">
           {view === 'home' && <HomePage categories={CATEGORIES} experts={MOCK_EXPERTS} onScanClick={() => handleNavigation('scan')} onBrowseClick={() => handleNavigation('browse')} onBookExpert={handleBookClick} onExpertClick={navigateToExpert} onPartnerClick={() => handleNavigation('partner-onboarding')} />}
           {view === 'scan' && <ScanPage loading={loading} diagnosticResult={diagnosticResult} previewUrl={previewUrl} onFileUpload={handleFileUpload} onReset={() => setDiagnosticResult(null)} getRecommendedExpert={getRecommendedExpert} onBookExpert={handleBookClick} onExpertClick={navigateToExpert} onBackToHome={() => handleNavigation('home')} onBookingWithNegotiation={(exp, price) => { setSelectedExpert(exp); onBookingConfirm(`Today at 4:00 PM`, price); handleNavigation('history'); }} />}
           {view === 'browse' && <BrowsePage experts={MOCK_EXPERTS} onBookExpert={handleBookClick} onExpertClick={navigateToExpert} initialSearch={searchTerm} onSearchUpdate={setSearchTerm} />}
@@ -286,11 +231,8 @@ const App: React.FC = () => {
         </main>
       </div>
 
-      {/* THE ORION BRIDGE with HUB DROPDOWN */}
       <div className="fixed bottom-12 left-0 right-0 flex justify-center z-[200] px-6 pointer-events-none pb-[env(safe-area-inset-bottom)]">
         <div className="relative pointer-events-auto w-full max-w-2xl flex flex-col items-center gap-4">
-          
-          {/* NEURAL HUB DROPDOWN */}
           {isHubOpen && (
             <div className="w-full bg-slate-950/90 backdrop-blur-[60px] border border-white/10 rounded-[40px] p-8 shadow-[0_50px_100px_rgba(0,0,0,0.9)] animate-in slide-in-from-bottom-6 fade-in duration-500 overflow-hidden relative mb-2">
                <div className="absolute top-0 right-0 p-8 opacity-5 pointer-events-none">
@@ -322,7 +264,6 @@ const App: React.FC = () => {
             </div>
           )}
 
-          {/* MAIN DOCK (Truly Floating Bridge) */}
           <div className="relative w-full h-20 bg-slate-900/60 backdrop-blur-3xl rounded-full border border-white/10 shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8),0_0_20px_rgba(59,130,246,0.1)] flex items-center justify-between px-2 overflow-hidden">
             <div className={`absolute inset-y-0 left-0 w-12 bg-gradient-to-r from-slate-900/40 to-transparent z-20 pointer-events-none transition-opacity ${canScrollLeft ? 'opacity-100' : 'opacity-0'}`} />
             <div className={`absolute inset-y-0 right-0 w-12 bg-gradient-to-l from-slate-900/40 to-transparent z-20 pointer-events-none transition-opacity ${canScrollRight ? 'opacity-100' : 'opacity-0'}`} />
@@ -331,8 +272,6 @@ const App: React.FC = () => {
               <NavButton target="home" label="Home" current={view} icon={<Icon name="satellite" className="w-5 h-5" />} />
               <NavButton target="browse" label="Explore" current={view} icon={<Icon name="search" className="w-5 h-5" />} />
               <NavButton target="ai-consult" label="Consult" current={view} icon={<Icon name="sparkles" className="w-5 h-5" />} />
-              
-              {/* CENTRAL CORE ACTION */}
               <div className="px-4 flex-shrink-0 relative group/core">
                 <div className="absolute inset-0 m-auto w-[60px] h-[60px] border border-dashed border-blue-500/30 rounded-full animate-[spin_20s_linear_infinite]" />
                 <button 
@@ -342,9 +281,7 @@ const App: React.FC = () => {
                    <Icon name="eye" className="w-6 h-6 text-white" />
                 </button>
               </div>
-
               <NavButton target="inbox" label="Inbox" current={view} icon={<Icon name="inbox" className="w-5 h-5" />} />
-              
               <button 
                 onClick={() => setIsHubOpen(!isHubOpen)}
                 className={`relative flex flex-col items-center justify-center min-w-[76px] md:min-w-[84px] h-[64px] transition-all duration-300 select-none ${isHubOpen ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'}`}
@@ -355,7 +292,6 @@ const App: React.FC = () => {
                 </div>
                 <span className="text-[7px] font-black uppercase tracking-[0.2em] mt-1.5">Hub</span>
               </button>
-
               <NavButton target="profile" label="Me" current={view} icon={<div className={`w-5 h-5 rounded-full overflow-hidden border-2 transition-colors ${view === 'profile' ? 'border-blue-400' : 'border-slate-700'}`}><img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Felix" alt="User" className="w-full h-full object-cover" /></div>} />
             </div>
           </div>
@@ -363,7 +299,6 @@ const App: React.FC = () => {
       </div>
 
       {selectedExpert && <BookingModal isOpen={isBookingOpen} onClose={() => setIsBookingOpen(false)} expert={selectedExpert} onConfirm={onBookingConfirm} />}
-      <style>{`@keyframes pulse-slow { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.6; } } .animate-pulse-slow { animation: pulse-slow 4s cubic-bezier(0.4, 0, 0.6, 1) infinite; }`}</style>
     </div>
   );
 };
