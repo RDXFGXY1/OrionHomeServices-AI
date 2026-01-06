@@ -59,7 +59,7 @@ npm install
 3. Set up environment variables:
 Create a `.env` file in the root directory and add your API key:
 ```env
-VITE_GEMINI_API_KEY=your_api_key_here
+GEMINI_API_KEY=your_api_key_here
 
 ```
 
