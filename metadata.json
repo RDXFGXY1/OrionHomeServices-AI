@@ -1,0 +1,7 @@
+{
+  "name": "FixIt AI - Home Repair Diagnostic",
+  "description": "A modern, Uber-style application that uses Gemini 3 vision to diagnose home repair issues from photos or videos and recommends local experts.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
